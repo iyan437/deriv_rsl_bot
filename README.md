@@ -1,2 +1,2 @@
-# deriv_rsl_bot
-Deriv RSL Bot with telegram alerts
+# deriv_tv_bot
+Deriv TV Bot with telegram alerts
