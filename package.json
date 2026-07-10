@@ -1,0 +1,9 @@
+{
+  "name": "deriv-tv-bot",
+  "version": "1.0.0",
+  "description": "Deriv RSI alerts to Telegram",
+  "main": "bot.js",
+  "dependencies": {
+    "node-fetch": "2.6.7"
+  }
+}
