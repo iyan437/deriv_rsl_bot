@@ -2,7 +2,7 @@ name: Deriv TV Bot
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # Every 5 minutes - fixed
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
