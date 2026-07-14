@@ -1,9 +1,14 @@
 {
-  "name": "deriv-tv-bot",
+  "name": "deriv-rsi-bot",
   "version": "1.0.0",
-  "description": "Deriv RSI alerts to Telegram",
   "main": "bot.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node bot.js"
+  },
   "dependencies": {
-    "node-fetch": "2.6.7"
+    "ws": "^8.18.0",
+    "node-fetch": "^2.7.0",
+    "nodemailer": "^6.9.15"
   }
 }
