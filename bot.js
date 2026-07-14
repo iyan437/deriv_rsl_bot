@@ -1,28 +1,44 @@
+const WebSocket = require('ws');
 const fetch = require('node-fetch');
+const nodemailer = require('nodemailer');
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const PHONE = process.env.WHATSAPP_PHONE; 
+const APIKEY = process.env.WHATSAPP_KEY;
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS;
+const APP_ID = '1089';
 
-async function sendTelegram(message) {
-  const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message })
-    });
-    const data = await res.json();
-    console.log('Telegram response:', JSON.stringify(data));
-    if (!data.ok) console.error('❌ Telegram error:', data.description);
-  } catch (e) {
-    console.error('❌ Fetch failed:', e.message);
+let prices = [];
+const RSI_PERIOD = 14;
+
+async function sendWhatsApp(message) {
+  const url = `https://api.callmebot.com/whatsapp.php?phone=${PHONE}&text=${encodeURIComponent(message)}&apikey=${APIKEY}`;
+  await fetch(url);
+}
+
+async function sendEmail(message) {
+  let transporter = nodemailer.createTransport({service: 'gmail', auth: {user: EMAIL_USER, pass: EMAIL_PASS}});
+  await transporter.sendMail({from: EMAIL_USER, to: EMAIL_USER, subject: 'Deriv RSI Signal', text: message});
+}
+
+function calculateRSI(p) { /* same as before */ }
+
+const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
+ws.on('open', () => { sendWhatsApp("✅ Bot LIVE 24/7"); ws.send(JSON.stringify({ticks: "R_100", subscribe: 1})); });
+
+ws.on('message', (data) => {
+  const msg = JSON.parse(data);
+  if (msg.tick) {
+    const price = parseFloat(msg.tick.quote);
+    prices.push(price);
+    if (prices.length > RSI_PERIOD) prices.shift();
+    if (prices.length === RSI_PERIOD) {
+      const rsi = calculateRSI(prices);
+      if (rsi < 30) { const m = `📈 BUY RSI:${rsi.toFixed(2)} Price:${price}`; sendWhatsApp(m); sendEmail(m); }
+      if (rsi > 70) { const m = `📉 SELL RSI:${rsi.toFixed(2)} Price:${price}`; sendWhatsApp(m); sendEmail(m); }
+    }
   }
-}
+});
 
-async function checkDeriv() {
-  // Your Deriv RSI logic here
-  const message = 'RSI Alert: Buy signal on Volatility 100 Index';
-  await sendTelegram(message);
-}
-
-checkDeriv();
+// Keep alive ping so Replit doesn't sleep
+setInterval(()=>{console.log("Bot alive")}, 60000);
