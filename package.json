@@ -1,14 +1,14 @@
 {
-  "name": "deriv-rsi-bot",
+  "name": "deriv-tv-bot",
   "version": "1.0.0",
+  "description": "Deriv Match 7 Email Alert Bot",
   "main": "bot.js",
-  "type": "commonjs",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
     "ws": "^8.18.0",
-    "node-fetch": "^2.7.0",
-    "nodemailer": "^6.9.15"
+    "nodemailer": "^6.9.14",
+    "dotenv": "^16.4.5"
   }
 }
