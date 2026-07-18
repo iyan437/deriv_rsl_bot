@@ -1,61 +1,105 @@
 const WebSocket = require('ws');
-const fetch = require('node-fetch');
+const nodemailer = require('nodemailer');
+require('dotenv').config();
 
-const PHONE = process.env.WHATSAPP_PHONE; // +2547XXXXXXXX
-const APIKEY = process.env.WHATSAPP_KEY;
-const APP_ID = '1089';
+const APP_TOKEN = process.env.DERIV_TOKEN;
+const APP_ID = "1089";
+const SYMBOL = "R_100";
+const TARGET_DIGIT = 7;
+const TICKS_TO_ANALYZE = 50;
 
-let prices = [];
-const RSI_PERIOD = 14;
-let lastSignal = 0; // cooldown so it doesn't spam you
+let alertSent = false;
 
-async function sendWhatsApp(message) {
-  const url = `https://api.callmebot.com/whatsapp.php?phone=${PHONE}&text=${encodeURIComponent(message)}&apikey=${APIKEY}`;
-  await fetch(url);
-  console.log("WhatsApp Sent:", message);
-}
-
-function calculateRSI(prices) {
-  let gains = 0, losses = 0;
-  for (let i = 1; i < prices.length; i++) {
-    let diff = prices[i] - prices[i-1];
-    if (diff > 0) gains += diff;
-    else losses -= diff;
+// Email setup
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER, // ianmunene1417@gmail.com
+    pass: process.env.EMAIL_PASS  //umee qpcb odcd qssy
   }
-  if(losses === 0) return 100;
-  let rs = gains / losses;
-  return 100 - (100 / (1 + rs));
-}
-
-const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
-
-ws.on('open', () => {
-  sendWhatsApp("✅ Bot connected to Deriv Volatility 100 (1s)");
-  ws.send(JSON.stringify({ticks: "R_100", subscribe: 1}));
 });
 
-ws.on('message', (data) => {
-  const msg = JSON.parse(data);
-  if (msg.tick) {
-    const price = parseFloat(msg.tick.quote);
-    prices.push(price);
-    if (prices.length > RSI_PERIOD) prices.shift();
-    
-    if (prices.length === RSI_PERIOD) {
-      const rsi = calculateRSI(prices);
-      const now = Date.now();
+function sendEmailAlert(message) {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: process.env.EMAIL_USER,
+    subject: '🚨 DERIV SIGNAL: MATCH 7 FOUND 🚨',
+    text: message
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.log('❌ Email failed:', error);
+    } else {
+      console.log('✅ Email sent:', info.response);
+      alertSent = true;
+    }
+  });
+}
+
+async function runBot() {
+  console.log("Bot starting... Connecting to Deriv");
+  
+  while (true) {
+    let digits = [];
+    console.log("\n" + "=".repeat(40));
+    console.log(`Starting new 50 tick scan for ${SYMBOL}`);
+
+    const ws = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`);
+
+    ws.on('open', () => {
+      ws.send(JSON.stringify({ authorize: APP_TOKEN }));
+    });
+
+    ws.on('message', (msg) => {
+      const data = JSON.parse(msg);
       
-      // Only send if 5 minutes passed since last signal
-      if (now - lastSignal > 5 * 60 * 1000) {
-        if (rsi < 30) {
-          sendWhatsApp(`📈 BUY Signal!\nRSI: ${rsi.toFixed(2)}\nVol100(1s)\nPrice: ${price}`);
-          lastSignal = now;
-        }
-        if (rsi > 70) {
-          sendWhatsApp(`📉 SELL Signal!\nRSI: ${rsi.toFixed(2)}\nVol100(1s)\nPrice: ${price}`);
-          lastSignal = now;
+      if (data.msg_type === 'authorize') {
+        ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
+      }
+
+      if (data.msg_type === 'tick') {
+        const quote = data.tick.quote;
+        const lastDigit = parseInt(quote.toString().slice(-1));
+        digits.push(lastDigit);
+        process.stdout.write(`Tick ${digits.length}/${TICKS_TO_ANALYZE} | Last digit: ${lastDigit}\r`);
+
+        if (digits.length >= TICKS_TO_ANALYZE) {
+          ws.close();
+          
+          const count7 = digits.filter(d => d === TARGET_DIGIT).length;
+          console.log(`\nScan Complete! Digit ${TARGET_DIGIT}: ${count7}/50 times`);
+
+          if (count7 < 4) {
+            if (!alertSent) {
+              const signalMsg = `🚨 MATCH 7 SIGNAL FOUND 🚨
+
+Symbol: ${SYMBOL}
+Analysis: ${count7} out of 50 ticks
+Time: ${new Date().toLocaleString()}
+
+Action: Place MATCH 7 trade NOW!`;
+              console.log(signalMsg);
+              sendEmailAlert(signalMsg);
+            }
+          } else {
+            console.log("No signal. Waiting 10s for next scan...");
+            alertSent = false;
+          }
+
+          setTimeout(runBot, 10000); // restart after 10s
         }
       }
-    }
+    });
+
+    ws.on('error', (err) => {
+      console.log("Connection error:", err);
+      setTimeout(runBot, 10000);
+    });
+
+    // wait until ws closes
+    await new Promise(resolve => ws.on('close', resolve));
   }
-});
+}
+
+runBot();
