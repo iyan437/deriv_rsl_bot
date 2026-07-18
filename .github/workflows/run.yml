@@ -1,28 +1,20 @@
 name: Deriv RSI Bot
 on:
   schedule:
-    - cron: '*/5 * * * *'  # runs every 5 minutes
-  workflow_dispatch:       # lets you run it manually
+    - cron: '*/5 * * * *' # every 5 min to save minutes
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run bot
-        run: node bot.js
+      - run: npm install
+      - run: node bot.js
         env:
-          WHATSAPP_PHONE: ${{ secrets.WHATSAPP_PHONE }}
-          WHATSAPP_KEY: ${{ secrets.WHATSAPP_KEY }}
+          DERIV_TOKEN: ${{ secrets.DERIV_TOKEN }}
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
