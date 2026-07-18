@@ -1,132 +1,80 @@
-import { DerivAPI } from '@deriv/deriv-api';
-import WebSocket from 'ws';
-import nodemailer from 'nodemailer';
+const WebSocket = require('ws');
+const nodemailer = require('nodemailer');
 
-const app_id = 1089;
-const token = process.env.DERIV_TOKEN;
-const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASS = process.env.EMAIL_PASS;
+const APP_ID = '1089';
+const DERIV_TOKEN = process.env.DERIV_TOKEN;
+const EMAIL_USER = process.env.EMAIL_USER; // your gmail
+const EMAIL_PASS = process.env.EMAIL_PASS; // 16 digit app password
 
-const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${app_id}`);
-const api = new DerivAPI({ connection: ws });
+let prices = [];
+const RSI_PERIOD = 14;
+let lastSignal = ''; // prevent spam
 
-async function sendEmail(symbol, signal, rsi) {
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user: EMAIL_USER, pass: EMAIL_PASS }
-    });
-    await transporter.sendMail({
-        from: EMAIL_USER,
-        to: EMAIL_USER,
-        subject: `DERIV SIGNAL: ${signal} on ${symbol}`,
-        text: `Signal: ${signal}\nSymbol: ${symbol}\nRSI: ${rsi.toFixed(2)}`
-    });
-    console.log('✅ Email sent');
-}
-
-async function runBot() {
-    console.log('Bot starting...');
-    await api.account.getAccountInfo();
-    
-    const symbols = ['frxEURUSD', 'frxGBPUSD', 'frxUSDJPY']; // add more if you want
-    let ticks = [];
-
-    for(const symbol of symbols){
-        ticks = [];
-        console.log(`Scanning ${symbol}`);
-        await new Promise(resolve => {
-            api.ticks.subscribe(symbol).then(sub => {
-                sub.on('tick', (tick) => {
-                    ticks.push(parseFloat(tick.quote));
-                    if(ticks.length >= 50){
-                        sub.unsubscribe();
-                        resolve();
-                    }
-                });
-            });
-        });
-
-        // RSI calculation
-        let gains = 0, losses = 0;
-        for(let i=1; i<ticks.length; i++){
-            const diff = ticks[i] - ticks[i-1];
-            if(diff > 0) gains += diff; else losses -= diff;
-        }
-        const rs = gains / (losses || 1);
-        const rsi = 100 - (100 / (1 + rs));
-
-        if(rsi < 30) await sendEmail(symbol, 'BUY', rsi);
-        if(rsi > 70) await sendEmail(symbol, 'SELL', rsi);
+// Email setup
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { 
+        user: EMAIL_USER, 
+        pass: EMAIL_PASS 
     }
-    ws.close();
+});
+
+async function sendEmail(subject, message) {
+    try {
+        await transporter.sendMail({
+            from: EMAIL_USER,
+            to: EMAIL_USER, // sends to yourself
+            subject: subject,
+            text: message
+        });
+        console.log("📧 Email Sent:", subject);
+    } catch(err) {
+        console.log("Email error:", err);
+    }
 }
 
-runBot();  });
+function calculateRSI(prices) {
+    let gains = 0, losses = 0;
+    for (let i = 1; i < prices.length; i++) {
+        let diff = prices[i] - prices[i-1];
+        if (diff > 0) gains += diff;
+        else losses -= diff;
+    }
+    if(losses === 0) return 100;
+    let rs = gains / losses;
+    return 100 - (100 / (1 + rs));
 }
 
-async function runBot() {
-  console.log("Bot starting... Connecting to Deriv");
-  
-  while (true) {
-    let digits = [];
-    console.log("\n" + "=".repeat(40));
-    console.log(`Starting new 50 tick scan for ${SYMBOL}`);
+const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
 
-    const ws = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`);
+ws.on('open', async () => {
+    await sendEmail("✅ Deriv Bot Connected", "Bot connected to Deriv Volatility 100 (1s)");
+    ws.send(JSON.stringify({ticks: "R_100", subscribe: 1}));
+});
 
-    ws.on('open', () => {
-      ws.send(JSON.stringify({ authorize: APP_TOKEN }));
-    });
-
-    ws.on('message', (msg) => {
-      const data = JSON.parse(msg);
-      
-      if (data.msg_type === 'authorize') {
-        ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
-      }
-
-      if (data.msg_type === 'tick') {
-        const quote = data.tick.quote;
-        const lastDigit = parseInt(quote.toString().slice(-1));
-        digits.push(lastDigit);
-        process.stdout.write(`Tick ${digits.length}/${TICKS_TO_ANALYZE} | Last digit: ${lastDigit}\r`);
-
-        if (digits.length >= TICKS_TO_ANALYZE) {
-          ws.close();
-          
-          const count7 = digits.filter(d => d === TARGET_DIGIT).length;
-          console.log(`\nScan Complete! Digit ${TARGET_DIGIT}: ${count7}/50 times`);
-
-          if (count7 < 4) {
-            if (!alertSent) {
-              const signalMsg = `🚨 MATCH 7 SIGNAL FOUND 🚨
-
-Symbol: ${SYMBOL}
-Analysis: ${count7} out of 50 ticks
-Time: ${new Date().toLocaleString()}
-
-Action: Place MATCH 7 trade NOW!`;
-              console.log(signalMsg);
-              sendEmailAlert(signalMsg);
+ws.on('message', async (data) => {
+    const msg = JSON.parse(data);
+    if (msg.tick) {
+        const price = parseFloat(msg.tick.quote);
+        prices.push(price);
+        if (prices.length > RSI_PERIOD) prices.shift();
+        
+        if (prices.length === RSI_PERIOD) {
+            const rsi = calculateRSI(prices);
+            let signal = '';
+            
+            if (rsi < 30) signal = 'BUY';
+            if (rsi > 70) signal = 'SELL';
+            
+            // only send if new signal
+            if(signal && signal!== lastSignal) {
+                lastSignal = signal;
+                const subject = `📊 DERIV SIGNAL: ${signal} on Vol100(1s)`;
+                const body = `Signal: ${signal}\nSymbol: Volatility 100 (1s)\nRSI: ${rsi.toFixed(2)}\nPrice: ${price}`;
+                await sendEmail(subject, body);
             }
-          } else {
-            console.log("No signal. Waiting 10s for next scan...");
-            alertSent = false;
-          }
-
-          setTimeout(runBot, 10000); // restart after 10s
         }
-      }
-    });
+    }
+});
 
-    ws.on('error', (err) => {
-      console.log("Connection error:", err);
-      setTimeout(runBot, 10000);
-    });
-
-    // wait until ws closes
-    await new Promise(resolve => ws.on('close', resolve));
-  }
-}
-
-runBot();
+ws.on('error', (err) => console.log('WS Error:', err));
