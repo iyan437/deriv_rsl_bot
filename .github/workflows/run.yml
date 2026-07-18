@@ -1,16 +1,20 @@
-name: Keep Bot Alive
+name: Deriv Bot
 on:
   schedule:
-    - cron: '*/5 * * * *' # pings every 5 mins
+    - cron: '*/5 *'  # runs every 5 minutes
   workflow_dispatch:
 
 jobs:
-  run:
+  run-bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '18'
       - run: npm install
       - run: npm start
+        env:
+          DERIV_TOKEN: ${{ secrets.DERIV_TOKEN }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
