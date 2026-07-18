@@ -1,7 +1,7 @@
 name: Deriv RSI Bot
 on:
   schedule:
-    - cron: '*/5 * * * *' # every 5 min to save minutes
+    - cron: '*/30 * * * *' # every 30min to save minutes
   workflow_dispatch:
 
 jobs:
