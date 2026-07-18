@@ -1,40 +1,67 @@
-const WebSocket = require('ws');
-const nodemailer = require('nodemailer');
-require('dotenv').config();
+import { DerivAPI } from '@deriv/deriv-api';
+import WebSocket from 'ws';
+import nodemailer from 'nodemailer';
 
-const APP_TOKEN = process.env.DERIV_TOKEN;
-const APP_ID = "1089";
-const SYMBOL = "R_100";
-const TARGET_DIGIT = 7;
-const TICKS_TO_ANALYZE = 50;
+const app_id = 1089;
+const token = process.env.DERIV_TOKEN;
+const EMAIL_USER = process.env.EMAIL_USER;
+const EMAIL_PASS = process.env.EMAIL_PASS;
 
-let alertSent = false;
+const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${app_id}`);
+const api = new DerivAPI({ connection: ws });
 
-// Email setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER, // ianmunene1417@gmail.com
-    pass: process.env.EMAIL_PASS  //umee qpcb odcd qssy
-  }
-});
+async function sendEmail(symbol, signal, rsi) {
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: EMAIL_USER, pass: EMAIL_PASS }
+    });
+    await transporter.sendMail({
+        from: EMAIL_USER,
+        to: EMAIL_USER,
+        subject: `DERIV SIGNAL: ${signal} on ${symbol}`,
+        text: `Signal: ${signal}\nSymbol: ${symbol}\nRSI: ${rsi.toFixed(2)}`
+    });
+    console.log('✅ Email sent');
+}
 
-function sendEmailAlert(message) {
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: process.env.EMAIL_USER,
-    subject: '🚨 DERIV SIGNAL: MATCH 7 FOUND 🚨',
-    text: message
-  };
+async function runBot() {
+    console.log('Bot starting...');
+    await api.account.getAccountInfo();
+    
+    const symbols = ['frxEURUSD', 'frxGBPUSD', 'frxUSDJPY']; // add more if you want
+    let ticks = [];
 
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.log('❌ Email failed:', error);
-    } else {
-      console.log('✅ Email sent:', info.response);
-      alertSent = true;
+    for(const symbol of symbols){
+        ticks = [];
+        console.log(`Scanning ${symbol}`);
+        await new Promise(resolve => {
+            api.ticks.subscribe(symbol).then(sub => {
+                sub.on('tick', (tick) => {
+                    ticks.push(parseFloat(tick.quote));
+                    if(ticks.length >= 50){
+                        sub.unsubscribe();
+                        resolve();
+                    }
+                });
+            });
+        });
+
+        // RSI calculation
+        let gains = 0, losses = 0;
+        for(let i=1; i<ticks.length; i++){
+            const diff = ticks[i] - ticks[i-1];
+            if(diff > 0) gains += diff; else losses -= diff;
+        }
+        const rs = gains / (losses || 1);
+        const rsi = 100 - (100 / (1 + rs));
+
+        if(rsi < 30) await sendEmail(symbol, 'BUY', rsi);
+        if(rsi > 70) await sendEmail(symbol, 'SELL', rsi);
     }
-  });
+    ws.close();
+}
+
+runBot();  });
 }
 
 async function runBot() {
