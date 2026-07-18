@@ -1,18 +1,16 @@
-name: Deriv RSI Bot
+name: Keep Bot Alive
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/5 * * * *' # pings every 5 mins
   workflow_dispatch:
+
 jobs:
-  run-bot:
+  run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
-          node-version: '20'
-      - run: npm install node-fetch@2 ws
-      - run: node bot.js
-        env:
-          WHATSAPP_PHONE: ${{ secrets.WHATSAPP_PHONE }}
-          WHATSAPP_KEY: ${{ secrets.WHATSAPP_KEY }}
+          node-version: '18'
+      - run: npm install
+      - run: npm start
