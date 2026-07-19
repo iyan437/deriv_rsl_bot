@@ -1,46 +1,48 @@
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 
-const SENDER_EMAIL = process.env.EMAIL_USER;
-const SENDER_PASS = process.env.EMAIL_PASS;
-const RECEIVER_EMAIL = process.env.EMAIL_TO;
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: SENDER_EMAIL,
-    pass: SENDER_PASS // this must be Gmail App Password
-  }
-});
+const TO = process.env.EMAIL_TO;
+const FROM = process.env.EMAIL_USER;
 
 async function sendEmail(subject, body) {
+  const msg = { to: TO, from: FROM, subject, text: body };
   try {
-    await transporter.sendMail({
-      from: SENDER_EMAIL,
-      to: RECEIVER_EMAIL,
-      subject: subject,
-      text: body
-    });
-    console.log(`EMAIL SENT: ${subject}`);
-    await new Promise(r => setTimeout(r, 5000)); // wait 5s for delivery
+    await sgMail.send(msg);
+    console.log(`✅ EMAIL SENT: ${subject}`);
   } catch (e) {
-    console.log("EMAIL FAILED:", e);
+    console.log(`❌ EMAIL FAILED: ${e.message}`);
   }
 }
 
+// This runs when the script exits for ANY reason
+process.on('exit', (code) => {
+  console.log(`Process exiting with code: ${code}`);
+});
+
+// This catches unhandled errors
+process.on('uncaughtException', async (err) => {
+  await sendEmail("Bot CRASHED", `Error: ${err.message}\n\n${err.stack}`);
+  process.exit(1);
+});
+
 async function main() {
-  try {
-    console.log("Bot starting...");
-    await sendEmail("Bot CONNECTED", `Bot started at ${new Date().toISOString()}`);
-    
-    // YOUR BOT LOGIC HERE
-    await new Promise(r => setTimeout(r, 3000));
-    
-    await sendEmail("Bot FINISHED", `Bot finished at ${new Date().toISOString()}`);
-    console.log("Bot done");
-  } catch (e) {
-    await sendEmail("Bot CRASHED", e.toString());
-    throw e;
-  }
+  const startTime = new Date();
+  await sendEmail("Bot CONNECTED", `Bot started at ${startTime.toISOString()}`);
+
+  // ===== PUT YOUR BOT LOGIC HERE =====
+  console.log("Bot is running...");
+  
+  // TEST 1: Trigger success email
+  await new Promise(r => setTimeout(r, 3000));
+  
+  // TEST 2: Uncomment this line to test crash email
+  // throw new Error("This is a test crash");
+  
+  // ===== END BOT LOGIC =====
+
+  const endTime = new Date();
+  await sendEmail("Bot FINISHED", `Bot finished successfully\nStarted: ${startTime}\nEnded: ${endTime}`);
 }
 
 main();
