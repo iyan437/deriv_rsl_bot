@@ -5,15 +5,14 @@ SENDER_EMAIL = os.getenv("EMAIL_USER")
 SENDER_PASSWORD = os.getenv("EMAIL_PASS")    
 RECEIVER_EMAIL = os.getenv("EMAIL_TO")       
 
-msg = MIMEText("Hello from GitHub Actions. If you get this, email works.")
-msg["Subject"] = "GitHub Test Email"
+msg = MIMEText("Test from GitHub")
+msg["Subject"] = "GITHUB TEST"
 msg["From"] = SENDER_EMAIL
 msg["To"] = RECEIVER_EMAIL
 
-try:
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL, msg.as_string())
-    print("EMAIL SENT SUCCESSFULLY")
-except Exception as e:
-    print("EMAIL FAILED:", type(e).__name__, e)
+with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+    server.login(SENDER_EMAIL, SENDER_PASSWORD)
+    result = server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL, msg.as_string())
+    
+print("SENDMAIL RESULT:", result) # If this is {} it means Gmail accepted it
+print("DONE")
