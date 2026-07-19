@@ -1,30 +1,46 @@
-import os, smtplib, time
-from email.mime.text import MIMEText
-from datetime import datetime
+import nodemailer from 'nodemailer';
 
-SENDER_EMAIL = os.getenv("EMAIL_USER")       
-SENDER_PASSWORD = os.getenv("EMAIL_PASS")    
-RECEIVER_EMAIL = os.getenv("EMAIL_TO")       
+const SENDER_EMAIL = process.env.EMAIL_USER;
+const SENDER_PASS = process.env.EMAIL_PASS;
+const RECEIVER_EMAIL = process.env.EMAIL_TO;
 
-def send_email(subject, body):
-    try:
-        msg = MIMEText(body)
-        msg["Subject"] = subject
-        msg["From"] = SENDER_EMAIL
-        msg["To"] = RECEIVER_EMAIL
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL, msg.as_string())
-        print(f"EMAIL SENT: {subject}")
-        time.sleep(5) # wait for delivery
-    except Exception as e:
-        print("EMAIL FAILED:", e)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: SENDER_EMAIL,
+    pass: SENDER_PASS // this must be Gmail App Password
+  }
+});
 
-print("Bot starting...")
-send_email("Bot CONNECTED", f"Bot started at {datetime.now()}")
+async function sendEmail(subject, body) {
+  try {
+    await transporter.sendMail({
+      from: SENDER_EMAIL,
+      to: RECEIVER_EMAIL,
+      subject: subject,
+      text: body
+    });
+    console.log(`EMAIL SENT: ${subject}`);
+    await new Promise(r => setTimeout(r, 5000)); // wait 5s for delivery
+  } catch (e) {
+    console.log("EMAIL FAILED:", e);
+  }
+}
 
-print("Bot running... waiting 10s")
-time.sleep(10) # simulate bot working
+async function main() {
+  try {
+    console.log("Bot starting...");
+    await sendEmail("Bot CONNECTED", `Bot started at ${new Date().toISOString()}`);
+    
+    // YOUR BOT LOGIC HERE
+    await new Promise(r => setTimeout(r, 3000));
+    
+    await sendEmail("Bot FINISHED", `Bot finished at ${new Date().toISOString()}`);
+    console.log("Bot done");
+  } catch (e) {
+    await sendEmail("Bot CRASHED", e.toString());
+    throw e;
+  }
+}
 
-send_email("Bot FINISHED", f"Bot finished successfully at {datetime.now()}")
-print("Bot done")
+main();
