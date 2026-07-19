@@ -1,30 +1,17 @@
-name: Run Deriv Bot
-
+name: Run Bot
 on:
-  workflow_dispatch:  # lets you click Run workflow
-
+  workflow_dispatch:
 jobs:
-  run-bot:
+  run:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: pip install websockets
-
-      - name: Run bot
-        env:  # <-- THIS IS THE IMPORTANT PART
-          DERIV_TOKEN: ${{ secrets.DERIV_TOKEN }}
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: 
+          node-version: '20'
+      - run: npm install
+      - run: node bot.js
+        env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
-        run: python bot.py
-        
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
