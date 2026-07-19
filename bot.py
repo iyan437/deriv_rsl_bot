@@ -1,17 +1,26 @@
-def send_email(subject, body):
-    if not SENDER_EMAIL or not RECEIVER_EMAIL or not SENDER_PASSWORD:
-        print("EMAIL ERROR: One of the secrets is empty. Check EMAIL_USER, EMAIL_PASS, EMAIL_TO")
-        return
-        
-    print("TRYING TO SEND EMAIL...")
-    try:
-        msg = MIMEText(body)
-        msg["Subject"] = subject
-        msg["From"] = SENDER_EMAIL
-        msg["To"] = RECEIVER_EMAIL
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL, msg.as_string())
-        print("Email sent!")
-    except Exception as e:
-        print("Email error:", e)
+import os, smtplib
+from email.mime.text import MIMEText
+
+SENDER_EMAIL = os.getenv("EMAIL_USER")       
+SENDER_PASSWORD = os.getenv("EMAIL_PASS")    
+RECEIVER_EMAIL = os.getenv("EMAIL_TO")       
+
+print(f"SENDING FROM: {SENDER_EMAIL}")
+print(f"SENDING TO: {RECEIVER_EMAIL}")
+
+msg = MIMEText("This is a test from Deriv Bot")
+msg["Subject"] = "TEST EMAIL FROM GITHUB"
+msg["From"] = SENDER_EMAIL
+msg["To"] = RECEIVER_EMAIL
+
+try:
+    print("Connecting to gmail...")
+    server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
+    print("Logging in...")
+    server.login(SENDER_EMAIL, SENDER_PASSWORD)
+    print("Sending...")
+    server.sendmail(SENDER_EMAIL, RECEIVER_EMAIL, msg.as_string())
+    server.quit()
+    print("SUCCESS: Email sent!")
+except Exception as e:
+    print("FAILED:", type(e).__name__, e)
